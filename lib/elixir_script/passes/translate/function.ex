@@ -9,7 +9,49 @@ defmodule ElixirScript.Translate.Function do
   alias ElixirScript.Translate.Forms.Pattern
 
   @spec compile(any, map) :: {ESTree.Node.t, map}
-  def compile({:fn, _, clauses}, state) do
+
+  def compile(any, map) do
+    super_compile(any, map)
+  rescue
+    e ->  logbug(any, map)
+          reraise e, __STACKTRACE__
+  end
+
+  require Logger
+
+  def logbug({func, type, _, clauses}, state) do
+    logbug({func, type, clauses}, state)
+  end
+  def logbug({func, type, [{line, _, _, _} | _]}, state) do
+    logbug({func, type}, line[:line], state)
+  end
+  def logbug({func, type, [{_, line, _} | _]}, state) do
+    logbug({func, type}, line[:line], state)
+  end
+
+  def logbug({{name, nil}, type}, line, state) do
+    logbug({type, "#{name}"}, line, state)
+  end
+  def logbug({{name, arity}, type}, line, state) do
+    logbug({type, "#{name}/#{arity}"}, line, state)
+  end
+
+  def logbug(func, line, %{:function => statefunc, :arity => statearity} = state) do
+    statefunc = "#{statefunc}/#{statearity}"
+    logbug(func, line, state, "#{state.module}.#{statefunc}")
+  end
+  def logbug(func, line, state) do
+    logbug(func, line, state, "#{state.module}")
+  end
+
+  def logbug({:fn, _}, line, _state, modpath)  do
+    Logger.warn "elixirscript: compiling #{modpath}, :fn at line #{line}..."
+  end
+  def logbug({type, func}, line, _state, modpath) do
+    Logger.warn "elixirscript: compiling #{modpath}.#{func}, #{type} at line #{line}..."
+  end
+
+  def super_compile({:fn, _, clauses}, state) do
     anonymous? = Map.get(state, :anonymous_fn, false)
 
     state = Map.put(state, :anonymous_fn, true)
@@ -51,7 +93,7 @@ defmodule ElixirScript.Translate.Function do
     { function_dec, state }
   end
 
-  def compile({{name, arity}, _type, _, clauses}, state) do
+  def super_compile({{name, arity}, _type, _, clauses}, state) do
 
     state = Map.put(state, :function, {name, arity})
     |> Map.put(:anonymous_fn, false)
